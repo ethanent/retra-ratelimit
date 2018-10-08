@@ -37,11 +37,6 @@ module.exports = class RateLimiter {
 	}
 
 	_logMatchesRule (log, rule) {
-		console.log('Matches rule?')
-		console.log(log)
-		console.log(rule)
-		console.log('-----')
-
 		if (rule.method && rule.method !== log.method) return false
 
 		if (rule.pathname && (rule.pathname instanceof RegExp ? !rule.pathname.test(log.pathname) : rule.pathname !== log.pathname)) return false
@@ -51,8 +46,6 @@ module.exports = class RateLimiter {
 
 	_handleLimiting (req, res, next, newLog) {
 		const associatedRules = this.rules.filter((rule) => this._logMatchesRule(newLog, rule))
-
-		console.log(associatedRules)
 
 		for (let i = 0; i < associatedRules.length; i++) {
 			const matchingLogs = this._fetchLogs(this._convertTime(associatedRules[i].time)).filter((log) => this._logMatchesRule(log, associatedRules[i]))
