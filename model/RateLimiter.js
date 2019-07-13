@@ -5,6 +5,8 @@ module.exports = class RateLimiter {
 		this.options = options
 		this.rules = rules
 
+		const mostDurationRuleDuration = this._convertTime(this.rules.sort((a, b) => this._convertTime(a.time) > this._convertTime(b.time) ? -1 : 1)[0].time)
+
 		this.extension = (req, res, next) => {
 			const connectingIP = this.options.cloudflare ? req.headers['cf-connecting-ip'] : req.from
 			const requestedPathname = req.parsedUrl.pathname
@@ -17,6 +19,13 @@ module.exports = class RateLimiter {
 			}
 
 			this.logs.push(newLog)
+
+			let checkIndex = 0
+
+			while (this.logs.length > 0 && Date.now() - this.logs[0].at > mostDurationRuleDuration) {
+				console.log('Shifting array!')
+				console.log(this.logs.shift())
+			}
 
 			this._handleLimiting(req, res, next, newLog)
 		}

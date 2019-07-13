@@ -1,6 +1,6 @@
 {
   "name": "retra-ratelimit",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "A powerful continuous rate limiting extension for retra",
   "main": "model/RateLimiter.js",
   "scripts": {
