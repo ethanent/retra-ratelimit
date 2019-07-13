@@ -23,8 +23,7 @@ module.exports = class RateLimiter {
 			let checkIndex = 0
 
 			while (this.logs.length > 0 && Date.now() - this.logs[0].at > mostDurationRuleDuration) {
-				console.log('Shifting array!')
-				console.log(this.logs.shift())
+				this.logs.shift()
 			}
 
 			this._handleLimiting(req, res, next, newLog)
