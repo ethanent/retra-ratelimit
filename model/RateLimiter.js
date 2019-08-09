@@ -5,9 +5,12 @@ module.exports = class RateLimiter {
 		this.options = options
 		this.rules = rules
 
+		this.currentId = 0
+		this.workerMode = false
+
 		const mostDurationRuleDuration = this._convertTime(this.rules.sort((a, b) => this._convertTime(a.time) > this._convertTime(b.time) ? -1 : 1)[0].time)
 
-		this.extension = (req, res, next) => {
+		this.extension = async (req, res, next) => {
 			const connectingIP = this.options.cloudflare ? req.headers['cf-connecting-ip'] : req.from
 			const requestedPathname = req.parsedUrl.pathname
 
@@ -18,7 +21,15 @@ module.exports = class RateLimiter {
 				'at': Date.now()
 			}
 
-			this.logs.push(newLog)
+			if (this.workerMode === true) {
+				await this._requestParent({
+					'action': 'saveLog',
+					'log': newLog
+				})
+			}
+			else {
+				this.logs.push(newLog)
+			}
 
 			let checkIndex = 0
 
@@ -52,22 +63,89 @@ module.exports = class RateLimiter {
 		return true
 	}
 
-	_handleLimiting (req, res, next, newLog) {
-		const associatedRules = this.rules.filter((rule) => this._logMatchesRule(newLog, rule))
+	async _shouldLimitRequest (newLog) {
+		if (this.workerMode === true) {
+			return await this._requestParent({
+				'action': 'shouldLimit',
+				'log': newLog
+			})
+		}
+		else {
+			const associatedRules = this.rules.filter((rule) => this._logMatchesRule(newLog, rule))
 
-		for (let i = 0; i < associatedRules.length; i++) {
-			const matchingLogs = this._fetchLogs(this._convertTime(associatedRules[i].time)).filter((log) => this._logMatchesRule(log, associatedRules[i]))
+			for (let i = 0; i < associatedRules.length; i++) {
+				const matchingLogs = this._fetchLogs(this._convertTime(associatedRules[i].time)).filter((log) => this._logMatchesRule(log, associatedRules[i]))
 
-			const actualLimit = this.options.varyLimit ? associatedRules[i].limit + (Math.floor(Math.random() * 4)) - 2 : associatedRules[i].limit
+				const actualLimit = this.options.varyLimit ? associatedRules[i].limit + (Math.floor(Math.random() * 4)) - 2 : associatedRules[i].limit
 
-			if (matchingLogs.length > actualLimit) {
-				res.status(429).body({
-					'error': associatedRules[i].blockMessage || this.options.blockMessage || 'You\'re being ratelimited.'
-				}).end()
-				return
+				if (matchingLogs.length > actualLimit) {
+					return {
+						'block': true,
+						'rule': associatedRules[i]
+					}
+				}
+			}
+
+			return {
+				'block': false
 			}
 		}
+	}
 
-		next()
+	async _handleLimiting (req, res, next, newLog) {
+		const shouldLimit = await this._shouldLimitRequest(newLog)
+
+		if (shouldLimit.block) {
+			res.status(429).body({
+				'error': shouldLimit.rule.blockMessage || this.options.blockMessage || 'You\'re being ratelimited.'
+			}).end()
+		}
+		else {
+			next()
+		}
+	}
+
+	_requestParent (data) {
+		return new Promise((resolve, reject) => {
+			const id = this.currentId
+
+			this.currentId++
+
+			const message = Object.assign(data, {
+				'id': id
+			})
+
+			process.send(message)
+
+			const handler = (data) => {
+				if (data.id === id) {
+					process.removeListener('message', handler)
+				}
+
+				resolve(data)
+			}
+
+			process.on('message', handler)
+		})
+	}
+
+	addWorker (worker) {
+		worker.on('message', async (data) => {
+			if (data.action === 'saveLog') {
+				this.logs.push(data.log)
+				worker.send({
+					'id': data.id
+				})
+			}
+			else if (data.action === 'shouldLimit') {
+				worker.send(Object.assign(await this._shouldLimitRequest(data.log), {
+					'id': data.id
+				}))
+			}
+		})
+	}
+
+	deferToParent () {
+		this.workerMode = true
 	}
 }

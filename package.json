@@ -1,6 +1,6 @@
 {
   "name": "retra-ratelimit",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A powerful continuous rate limiting extension for retra",
   "main": "model/RateLimiter.js",
   "scripts": {
@@ -18,6 +18,6 @@
   },
   "homepage": "https://github.com/ethanent/retra-ratelimit",
   "devDependencies": {
-    "retra": "^1.0.2"
+    "retra": "^1.2.0"
   }
 }

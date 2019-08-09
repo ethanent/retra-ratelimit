@@ -47,3 +47,21 @@ Options:
 - `cloudflare` - If enabled, uses the `CF-Connecting-IP` header to detect client IPs
 - `blockMessage` - Message to respond with when blocking (used when no blockMessage is defined)
 - `varyLimit`- If enabled, varies limit for rules per request by up to 2 requests, making it harder for attackers to detect ratelimiting rules
+
+## Cluster usage
+
+In the master process, don't start a server but create a RateLimiter.
+
+When forking a worker, add it to the RateLimiter.
+
+```js
+const worker = cluster.fork()
+
+rl.addWorker(worker)
+```
+
+Inside of the worker, instruct the RateLimiter to defer ratelimiting logic to the parent process.
+
+```js
+rl.deferToParent()
+```
