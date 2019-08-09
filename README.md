@@ -65,3 +65,11 @@ Inside of the worker, instruct the RateLimiter to defer ratelimiting logic to th
 ```js
 rl.deferToParent()
 ```
+
+## Disqualifying a Request from Rate Limiting
+
+By disqualifying requests from rate limiting, legitimate requests may be allowed in unlimited quantity. (ex. successful login attempts)
+
+```js
+req.disqualifyRL()
+```

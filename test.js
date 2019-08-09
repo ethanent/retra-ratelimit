@@ -33,6 +33,11 @@ app.add('GET', '/hey', (req, res) => {
 })
 
 app.add('POST', '/hello', (req, res) => {
+	if (req.query('norl') === 'true') {
+		console.log('NORL')
+		req.disqualifyRL()
+	}
+
 	res.status(200).body('Hi there!').end()
 })
 

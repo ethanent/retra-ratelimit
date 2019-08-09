@@ -1,3 +1,5 @@
+const genId = require('../lib/genId.js')
+
 module.exports = class RateLimiter {
 	constructor (options, rules) {
 		this.logs = []
@@ -14,7 +16,10 @@ module.exports = class RateLimiter {
 			const connectingIP = this.options.cloudflare ? req.headers['cf-connecting-ip'] : req.from
 			const requestedPathname = req.parsedUrl.pathname
 
+			const requestId = await genId()
+
 			const newLog = {
+				'id': requestId,
 				'pathname': requestedPathname,
 				'ip': connectingIP,
 				'method': req.method,
@@ -29,6 +34,18 @@ module.exports = class RateLimiter {
 			}
 			else {
 				this.logs.push(newLog)
+			}
+
+			req.disqualifyRL = async () => {
+				if (this.workerMode === true) {
+					await this._requestParent({
+						'action': 'disqualifyRL',
+						'logId': requestId
+					})
+				}
+				else {
+					this.logs.splice(this.logs.findIndex((log) => log.id === requestId), 1)
+				}
 			}
 
 			let checkIndex = 0
@@ -141,6 +158,13 @@ module.exports = class RateLimiter {
 				worker.send(Object.assign(await this._shouldLimitRequest(data.log), {
 					'id': data.id
 				}))
+			}
+			else if (data.action === 'disqualifyRL') {
+				this.logs.splice(this.logs.findIndex((log) => log.id === data.logId), 1)
+
+				worker.send({
+					'id': data.id
+				})
 			}
 		})
 	}
