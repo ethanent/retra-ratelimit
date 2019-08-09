@@ -10,7 +10,7 @@ module.exports = class RateLimiter {
 		this.currentId = 0
 		this.workerMode = false
 
-		const mostDurationRuleDuration = this._convertTime(this.rules.sort((a, b) => this._convertTime(a.time) > this._convertTime(b.time) ? -1 : 1)[0].time)
+		this.mostDurationRuleDuration = this._convertTime(this.rules.sort((a, b) => this._convertTime(a.time) > this._convertTime(b.time) ? -1 : 1)[0].time)
 
 		this.extension = async (req, res, next) => {
 			const connectingIP = this.options.cloudflare ? req.headers['cf-connecting-ip'] : req.from
@@ -48,13 +48,17 @@ module.exports = class RateLimiter {
 				}
 			}
 
-			let checkIndex = 0
-
-			while (this.logs.length > 0 && Date.now() - this.logs[0].at > mostDurationRuleDuration) {
-				this.logs.shift()
-			}
+			this._purgeOldLogs()
 
 			this._handleLimiting(req, res, next, newLog)
+		}
+	}
+
+	_purgeOldLogs () {
+		let checkIndex = 0
+
+		while (this.logs.length > 0 && Date.now() - this.logs[0].at > this.mostDurationRuleDuration) {
+			this.logs.shift()
 		}
 	}
 
@@ -150,6 +154,9 @@ module.exports = class RateLimiter {
 		worker.on('message', async (data) => {
 			if (data.action === 'saveLog') {
 				this.logs.push(data.log)
+
+				this._purgeOldLogs()
+
 				worker.send({
 					'id': data.id
 				})
